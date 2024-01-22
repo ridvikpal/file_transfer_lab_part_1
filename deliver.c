@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
 int main(int argc,char *argv[])
 {
@@ -47,29 +48,41 @@ int main(int argc,char *argv[])
         return -1;
     }
 
-    char* address = argv[1];
     struct sockaddr_in server_address;
     memset(&server_address, 0, sizeof (server_address));
     server_address.sin_family = AF_INET;
     server_address.sin_port = htons(port);
-    server_address.sin_addr.s_addr = inet_addr(address);
+    server_address.sin_addr.s_addr = inet_addr(argv[1]);
 
 
     //Make the socket
     int sockfd;
-    sockfd = socket(PF_INET, SOCK_DGRAM, 0);
-
-    //Send "ftp"
-    if (sendto(sockfd, "ftp", strlen("ftp"), 0, (struct sockaddr *) &server_address, sizeof (server_address))<0){
-        printf ("Error\n");
+    if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0))<0){
+        perror ("Error making the socket\n");
         return -1;
     }
 
+    //Send "ftp"
+    if (sendto(sockfd, "ftp", strlen("ftp"), MSG_CONFIRM, (struct sockaddr *) &server_address, sizeof (server_address))<0){
+        perror ("Sending ftp failed\n");
+        close(sockfd);
+        return -1;
+    }
+    printf ("ftp sent to the server\n");
+
     //Receive message from the server
     ssize_t msg_len;
+    socklen_t client_address_size = sizeof(server_address);
     char buffer [1024];
-    printf ("ftp sent to the server\n");
-    msg_len = recvfrom(sockfd, (char*) buffer, 1024, MSG_WAITALL, (struct sockaddr*) &server_address, NULL);
+    msg_len = recvfrom(sockfd, (char*) buffer, 1024, 0, (struct sockaddr*) &server_address, &client_address_size);
+
+
+    if (msg_len == -1){
+        perror("recvfrom failed");
+        close(sockfd);
+        return -1;
+    }
+
     buffer[msg_len] = '\0';
 
     if (strcmp(buffer, "yes") == 0){
@@ -78,5 +91,7 @@ int main(int argc,char *argv[])
         printf ("Exiting");
         return -1;
     }
+    free(str);
+    close (sockfd);
     return 0;
 }
