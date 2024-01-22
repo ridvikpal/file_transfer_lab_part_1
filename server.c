@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <arpa/inet.h>
+
+#define MESSAGE_SIZE 1024
 
 int main(int argc, char* argv[]){
     // input should be udp listen port, so only 1 argument
@@ -17,29 +20,31 @@ int main(int argc, char* argv[]){
 
         // setup our server address
         struct sockaddr_in serverSockAddrIn;
+        memset(&serverSockAddrIn, 0, sizeof(serverSockAddrIn));
         serverSockAddrIn.sin_family = AF_INET;
         serverSockAddrIn.sin_addr.s_addr = INADDR_ANY;
         serverSockAddrIn.sin_port = htons(atoi(argv[1])); // should be entered port number
         // fill the rest of the struct with 0
-        memset(serverSockAddrIn.sin_zero, '\0', sizeof(serverSockAddrIn.sin_zero));
+//        memset(serverSockAddrIn.sin_zero, '\0', sizeof(serverSockAddrIn.sin_zero));
 
         // create a new socket using socket(), returning socket fd
         int udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
         // associate address with the socket via bind()
         bind(udpSocket, (struct sockaddr*) &serverSockAddrIn, sizeof(serverSockAddrIn));
 
-        printf("Server started...\n");
+        printf("Server started at port %s...\n", argv[1]);
 
         // create buffer to store incoming message
-        char message[1024];
+        char message[MESSAGE_SIZE];
         // declare our client address
         struct sockaddr_in clientSockAddrIn;
         socklen_t clientAddressSize = sizeof(clientSockAddrIn);
+        memset(&clientSockAddrIn, 0, sizeof(clientSockAddrIn));
 
         while (1){
             // receive incoming UDP connections
-            ssize_t message_length = recvfrom(udpSocket, message, sizeof(message), 0,
-                                              (struct sockaddr*)&clientSockAddrIn,&clientAddressSize);
+            ssize_t message_length = recvfrom(udpSocket, (char*)message, MESSAGE_SIZE, 0,
+                                              (struct sockaddr*)&clientSockAddrIn, &clientAddressSize);
 
             if (message_length < 0){
                 printf("Failed to receive message.\n");
@@ -58,12 +63,15 @@ int main(int argc, char* argv[]){
                 strcpy(message, "no");
             }
 
+            printf("Sending message: %s\n", message);
+
             // send the response to the client
-            if (sendto(udpSocket, message, sizeof(message), 0, (struct sockaddr*)&clientSockAddrIn,
+            if (sendto(udpSocket, message, strlen(message), 0, (struct sockaddr*)&clientSockAddrIn,
                     clientAddressSize)< 0) {
                 printf("Failed to send message.\n");
                 continue;
             }
+
         }
 
         // close the file descriptor after it has been used
